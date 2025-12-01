@@ -416,22 +416,19 @@ export default function TimerPage() {
 
             <div className="z-10 w-full max-w-5xl">
                 {/* Header */}
-                <div className="text-center mb-12">
+                <div className="mb-12">
                     <div className="flex justify-between items-center mb-4">
-                        <div className="flex-1"></div>
-                        <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-white drop-shadow-lg flex-1 text-center">
+                        <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold tracking-tight text-white drop-shadow-lg whitespace-nowrap">
                             RC Garage <span className="text-ocean-teal">Log</span>
                         </h1>
-                        <div className="flex-1 flex justify-end">
-                            <button
-                                onClick={handleLogout}
-                                className="px-4 py-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg hover:bg-rose-500 hover:text-white transition-all text-sm font-bold uppercase tracking-wider"
-                            >
-                                Logout
-                            </button>
-                        </div>
+                        <button
+                            onClick={handleLogout}
+                            className="px-4 py-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg hover:bg-rose-500 hover:text-white transition-all text-sm font-bold uppercase tracking-wider whitespace-nowrap ml-4"
+                        >
+                            Logout
+                        </button>
                     </div>
-                    <div className="h-1 w-24 bg-gradient-to-r from-ocean-blue to-ocean-teal mx-auto rounded-full opacity-80"></div>
+                    <div className="h-1 w-24 bg-gradient-to-r from-ocean-blue to-ocean-teal rounded-full opacity-80"></div>
                 </div>
 
                 {/* Tab Navigation */}

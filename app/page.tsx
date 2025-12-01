@@ -428,7 +428,7 @@ export default function TimerPage() {
                             Logout
                         </button>
                     </div>
-                    <div className="h-1 w-24 bg-gradient-to-r from-ocean-blue to-ocean-teal rounded-full opacity-80"></div>
+                    <div className="h-1 w-24 bg-gradient-to-r from-ocean-blue to-ocean-teal rounded-full opacity-80 mt-4"></div>
                 </div>
 
                 {/* Tab Navigation */}

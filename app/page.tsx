@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
+import type { User } from '@supabase/supabase-js'
 
 interface TimerRecord {
     id: number
@@ -26,6 +28,9 @@ interface Transaction {
 type TabType = 'timer' | 'summary' | 'buysell' | 'backup'
 
 export default function TimerPage() {
+    const router = useRouter()
+    const [user, setUser] = useState<User | null>(null)
+    const [loading, setLoading] = useState(true)
     const [activeTab, setActiveTab] = useState<TabType>('timer')
 
     // Timer State
@@ -61,11 +66,29 @@ export default function TimerPage() {
         note: ''
     })
 
-    // Load data from Supabase on mount
+    // Check authentication on mount
     useEffect(() => {
+        checkAuth()
+    }, [])
+
+    const checkAuth = async () => {
+        const { data: { session } } = await supabase.auth.getSession()
+
+        if (!session) {
+            router.push('/login')
+            return
+        }
+
+        setUser(session.user)
+        setLoading(false)
         fetchRecords()
         fetchTransactions()
-    }, [])
+    }
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut()
+        router.push('/login')
+    }
 
     const fetchRecords = async () => {
         const { data, error } = await supabase
@@ -174,6 +197,7 @@ export default function TimerPage() {
             .from('timer_records')
             .insert([
                 {
+                    user_id: user?.id,
                     date: new Date().toISOString(),
                     duration: savedTime,
                     amount: amountNum,
@@ -289,6 +313,7 @@ export default function TimerPage() {
             .from('transactions')
             .insert([
                 {
+                    user_id: user?.id,
                     status: transactionForm.status,
                     item: transactionForm.item,
                     date_time: new Date().toISOString(),
@@ -373,6 +398,14 @@ export default function TimerPage() {
 
     const { hours, minutes, seconds, milliseconds } = formatTime(time)
 
+    if (loading) {
+        return (
+            <main className="min-h-screen flex items-center justify-center bg-gradient-to-b from-ocean-dark to-ocean-depth">
+                <div className="text-ocean-teal text-xl font-bold">Loading...</div>
+            </main>
+        )
+    }
+
     return (
         <main className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden bg-gradient-to-b from-ocean-dark to-ocean-depth text-white">
             {/* Background Animations */}
@@ -384,10 +417,21 @@ export default function TimerPage() {
             <div className="z-10 w-full max-w-5xl">
                 {/* Header */}
                 <div className="text-center mb-12">
-                    <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-white drop-shadow-lg">
-                        RC Garage <span className="text-ocean-teal">Log</span>
-                    </h1>
-                    <div className="h-1 w-24 bg-gradient-to-r from-ocean-blue to-ocean-teal mx-auto mt-4 rounded-full opacity-80"></div>
+                    <div className="flex justify-between items-center mb-4">
+                        <div className="flex-1"></div>
+                        <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-white drop-shadow-lg flex-1 text-center">
+                            RC Garage <span className="text-ocean-teal">Log</span>
+                        </h1>
+                        <div className="flex-1 flex justify-end">
+                            <button
+                                onClick={handleLogout}
+                                className="px-4 py-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg hover:bg-rose-500 hover:text-white transition-all text-sm font-bold uppercase tracking-wider"
+                            >
+                                Logout
+                            </button>
+                        </div>
+                    </div>
+                    <div className="h-1 w-24 bg-gradient-to-r from-ocean-blue to-ocean-teal mx-auto rounded-full opacity-80"></div>
                 </div>
 
                 {/* Tab Navigation */}

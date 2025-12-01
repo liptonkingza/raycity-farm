@@ -69,7 +69,6 @@ export default function RegisterPage() {
                     <h1 className="text-4xl font-bold text-white mb-2">
                         RC Garage <span className="text-ocean-teal">Register</span>
                     </h1>
-                    <div className="h-1 w-16 bg-gradient-to-r from-ocean-blue to-ocean-teal mx-auto rounded-full"></div>
                 </div>
 
                 <form onSubmit={handleRegister} className="space-y-4">

@@ -396,6 +396,130 @@ export default function TimerPage() {
         }
     }
 
+    // Backup functions
+    const handleExportTimerRecords = () => {
+        const dataStr = JSON.stringify(records, null, 2)
+        const dataBlob = new Blob([dataStr], { type: 'application/json' })
+        const url = URL.createObjectURL(dataBlob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `timer-records-${new Date().toISOString().split('T')[0]}.json`
+        link.click()
+        URL.revokeObjectURL(url)
+    }
+
+    const handleExportTransactions = () => {
+        const dataStr = JSON.stringify(transactions, null, 2)
+        const dataBlob = new Blob([dataStr], { type: 'application/json' })
+        const url = URL.createObjectURL(dataBlob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `transactions-${new Date().toISOString().split('T')[0]}.json`
+        link.click()
+        URL.revokeObjectURL(url)
+    }
+
+    const handleExportAll = () => {
+        const allData = {
+            timer_records: records,
+            transactions: transactions,
+            exported_at: new Date().toISOString()
+        }
+        const dataStr = JSON.stringify(allData, null, 2)
+        const dataBlob = new Blob([dataStr], { type: 'application/json' })
+        const url = URL.createObjectURL(dataBlob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `rc-garage-backup-${new Date().toISOString().split('T')[0]}.json`
+        link.click()
+        URL.revokeObjectURL(url)
+    }
+
+    const handleImportData = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        try {
+            const text = await file.text()
+            const data = JSON.parse(text)
+
+            // Check if it's a full backup or individual data
+            if (data.timer_records && data.transactions) {
+                // Full backup
+                await importTimerRecords(data.timer_records)
+                await importTransactions(data.transactions)
+                alert(`Successfully imported ${data.timer_records.length} timer records and ${data.transactions.length} transactions!`)
+            } else if (Array.isArray(data)) {
+                // Check if it's timer records or transactions
+                if (data.length > 0 && 'duration' in data[0]) {
+                    await importTimerRecords(data)
+                    alert(`Successfully imported ${data.length} timer records!`)
+                } else if (data.length > 0 && 'status' in data[0]) {
+                    await importTransactions(data)
+                    alert(`Successfully imported ${data.length} transactions!`)
+                } else {
+                    alert('Unknown data format')
+                }
+            } else {
+                alert('Invalid JSON format')
+            }
+
+            // Refresh data
+            fetchRecords()
+            fetchTransactions()
+        } catch (error) {
+            console.error('Import error:', error)
+            alert('Failed to import data. Please check the file format.')
+        }
+
+        // Reset file input
+        e.target.value = ''
+    }
+
+    const importTimerRecords = async (data: any[]) => {
+        if (!user) return
+
+        const recordsToImport = data.map(record => ({
+            user_id: user.id,
+            duration: record.duration,
+            amount: record.amount,
+            hourly_rate: record.hourly_rate,
+            date: record.date || new Date().toISOString()
+        }))
+
+        const { error } = await supabase
+            .from('timer_records')
+            .insert(recordsToImport)
+
+        if (error) {
+            console.error('Error importing timer records:', error)
+            throw error
+        }
+    }
+
+    const importTransactions = async (data: any[]) => {
+        if (!user) return
+
+        const transactionsToImport = data.map(transaction => ({
+            user_id: user.id,
+            status: transaction.status,
+            item: transaction.item,
+            date_time: transaction.date_time || new Date().toISOString(),
+            rain_price: transaction.rain_price,
+            baht_price: transaction.baht_price,
+            note: transaction.note
+        }))
+
+        const { error } = await supabase
+            .from('transactions')
+            .insert(transactionsToImport)
+
+        if (error) {
+            console.error('Error importing transactions:', error)
+            throw error
+        }
+    }
+
     const { hours, minutes, seconds, milliseconds } = formatTime(time)
 
     if (loading) {
@@ -414,29 +538,28 @@ export default function TimerPage() {
                 <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-ocean-teal/10 rounded-full blur-[100px] animate-pulse delay-1000"></div>
             </div>
 
-            <div className="z-10 w-full max-w-5xl">
+            <div className="z-10 w-full max-w-6xl px-2 sm:px-4">
                 {/* Header */}
-                <div className="mb-12">
-                    <div className="flex justify-between items-center mb-4">
-                        <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold tracking-tight text-white drop-shadow-lg whitespace-nowrap">
+                <div className="mb-8 sm:mb-12">
+                    <div className="flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-0">
+                        <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold tracking-tight text-white drop-shadow-lg text-center sm:text-left">
                             RC Garage <span className="text-ocean-teal">Log</span>
                         </h1>
                         <button
                             onClick={handleLogout}
-                            className="px-4 py-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg hover:bg-rose-500 hover:text-white transition-all text-sm font-bold uppercase tracking-wider whitespace-nowrap ml-4"
+                            className="px-4 py-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg hover:bg-rose-500 hover:text-white transition-all text-xs sm:text-sm font-bold uppercase tracking-wider whitespace-nowrap"
                         >
                             Logout
                         </button>
                     </div>
-                    <div className="h-1 w-24 bg-gradient-to-r from-ocean-blue to-ocean-teal rounded-full opacity-80 mt-4"></div>
                 </div>
 
                 {/* Tab Navigation */}
-                <div className="flex justify-center mb-10">
-                    <div className="bg-ocean-depth/50 backdrop-blur-md p-1 rounded-xl flex space-x-2 border border-white/5 shadow-lg overflow-x-auto max-w-full">
+                <div className="flex justify-center mb-6 sm:mb-10">
+                    <div className="bg-ocean-depth/50 backdrop-blur-md p-1 rounded-xl flex gap-1 sm:gap-2 border border-white/5 shadow-lg overflow-x-auto w-full sm:w-auto scrollbar-hide">
                         <button
                             onClick={() => setActiveTab('timer')}
-                            className={`px-6 py-2 rounded-lg transition-all duration-300 font-medium tracking-wide whitespace-nowrap ${activeTab === 'timer'
+                            className={`flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-3 rounded-lg transition-all duration-300 font-medium tracking-wide whitespace-nowrap text-xs sm:text-sm ${activeTab === 'timer'
                                 ? 'bg-gradient-to-r from-ocean-blue/20 to-ocean-teal/20 text-ocean-blue border border-ocean-blue/30 shadow-soft-blue'
                                 : 'text-gray-400 hover:text-white hover:bg-white/5'
                                 }`}
@@ -445,7 +568,7 @@ export default function TimerPage() {
                         </button>
                         <button
                             onClick={() => setActiveTab('summary')}
-                            className={`px-6 py-2 rounded-lg transition-all duration-300 font-medium tracking-wide whitespace-nowrap ${activeTab === 'summary'
+                            className={`flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-3 rounded-lg transition-all duration-300 font-medium tracking-wide whitespace-nowrap text-xs sm:text-sm ${activeTab === 'summary'
                                 ? 'bg-gradient-to-r from-ocean-blue/20 to-ocean-teal/20 text-ocean-blue border border-ocean-blue/30 shadow-soft-blue'
                                 : 'text-gray-400 hover:text-white hover:bg-white/5'
                                 }`}
@@ -454,12 +577,21 @@ export default function TimerPage() {
                         </button>
                         <button
                             onClick={() => setActiveTab('buysell')}
-                            className={`px-6 py-2 rounded-lg transition-all duration-300 font-medium tracking-wide whitespace-nowrap ${activeTab === 'buysell'
+                            className={`flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-3 rounded-lg transition-all duration-300 font-medium tracking-wide whitespace-nowrap text-xs sm:text-sm ${activeTab === 'buysell'
                                 ? 'bg-gradient-to-r from-ocean-blue/20 to-ocean-teal/20 text-ocean-blue border border-ocean-blue/30 shadow-soft-blue'
                                 : 'text-gray-400 hover:text-white hover:bg-white/5'
                                 }`}
                         >
-                            Buy / Sell
+                            Buy/Sell
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('backup')}
+                            className={`flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-3 rounded-lg transition-all duration-300 font-medium tracking-wide whitespace-nowrap text-xs sm:text-sm ${activeTab === 'backup'
+                                ? 'bg-gradient-to-r from-ocean-blue/20 to-ocean-teal/20 text-ocean-blue border border-ocean-blue/30 shadow-soft-blue'
+                                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                                }`}
+                        >
+                            Backup
                         </button>
                     </div>
                 </div>
@@ -488,8 +620,6 @@ export default function TimerPage() {
                                 </div>
                             </div>
                         </div>
-
-                        {/* Controls */}
                         <div className="flex space-x-6 w-full max-w-2xl justify-center">
                             {!isRunning ? (
                                 <button
@@ -547,391 +677,521 @@ export default function TimerPage() {
                             </div>
                         </div>
                     </div>
-                )}
+                )
+                }
 
-                {activeTab === 'summary' && (
-                    <div className="w-full animate-fadeIn space-y-8">
-                        {/* Summary Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="glass-panel p-6 rounded-2xl border-t-4 border-t-ocean-blue">
-                                <div className="text-gray-400 mb-2 uppercase tracking-wider text-xs">Total Records</div>
-                                <div className="text-4xl font-bold text-white">{records.length} <span className="text-lg text-gray-500 font-normal">Items</span></div>
-                            </div>
-                            <div className="glass-panel p-6 rounded-2xl border-t-4 border-t-ocean-teal">
-                                <div className="text-gray-400 mb-2 uppercase tracking-wider text-xs">Total Time</div>
-                                <div className="text-4xl font-bold text-ocean-teal">
-                                    {formatDuration(records.reduce((acc, curr) => acc + curr.duration, 0))}
+                {
+                    activeTab === 'summary' && (
+                        <div className="w-full animate-fadeIn space-y-8">
+                            {/* Summary Cards */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="glass-panel p-6 rounded-2xl border-t-4 border-t-ocean-blue">
+                                    <div className="text-gray-400 mb-2 uppercase tracking-wider text-xs">Total Records</div>
+                                    <div className="text-4xl font-bold text-white">{records.length} <span className="text-lg text-gray-500 font-normal">Items</span></div>
+                                </div>
+                                <div className="glass-panel p-6 rounded-2xl border-t-4 border-t-ocean-teal">
+                                    <div className="text-gray-400 mb-2 uppercase tracking-wider text-xs">Total Time</div>
+                                    <div className="text-4xl font-bold text-ocean-teal">
+                                        {formatDuration(records.reduce((acc, curr) => acc + curr.duration, 0))}
+                                    </div>
+                                </div>
+                                <div className="glass-panel p-6 rounded-2xl border-t-4 border-t-emerald-500">
+                                    <div className="text-gray-400 mb-2 uppercase tracking-wider text-xs">Total Earnings (Rain)</div>
+                                    <div className="text-4xl font-bold text-emerald-400">
+                                        {records.reduce((acc, curr) => acc + curr.amount, 0).toLocaleString()} Rain
+                                    </div>
                                 </div>
                             </div>
-                            <div className="glass-panel p-6 rounded-2xl border-t-4 border-t-emerald-500">
-                                <div className="text-gray-400 mb-2 uppercase tracking-wider text-xs">Total Earnings (Rain)</div>
-                                <div className="text-4xl font-bold text-emerald-400">
-                                    {records.reduce((acc, curr) => acc + curr.amount, 0).toLocaleString()} Rain
-                                </div>
-                            </div>
-                        </div>
 
-                        {/* Full History Table */}
-                        <div className="glass-panel rounded-2xl overflow-hidden">
-                            <div className="p-6 border-b border-white/5 flex justify-between items-center">
-                                <h2 className="text-xl font-bold text-white tracking-wide">Full History</h2>
-                                <div className="text-xs text-gray-500 uppercase">System Log v1.0</div>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-ocean-depth/80">
-                                        <tr>
-                                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">Date / Time</th>
-                                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">Duration</th>
-                                            <th className="px-6 py-4 text-right text-xs font-bold text-gray-300 uppercase tracking-wider">Amount</th>
-                                            <th className="px-6 py-4 text-center text-xs font-bold text-gray-300 uppercase tracking-wider">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-white/5">
-                                        {records.map((record) => (
-                                            <tr key={record.id} className="hover:bg-white/5 transition-colors group">
-                                                <td className="px-6 py-4 text-sm text-gray-300 font-mono">
-                                                    {new Date(record.date).toLocaleString('th-TH')}
-                                                </td>
-                                                <td className="px-6 py-4 text-sm font-mono text-white">
-                                                    {formatDuration(record.duration)}
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-right font-bold text-emerald-400 font-mono">
-                                                    {record.amount.toLocaleString()} Rain
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-center space-x-2">
-                                                    <button
-                                                        onClick={() => handleEdit(record)}
-                                                        className="px-3 py-1 bg-ocean-blue/10 text-ocean-blue rounded hover:bg-ocean-blue hover:text-white transition-colors text-xs font-medium"
-                                                    >
-                                                        Edit
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDelete(record.id)}
-                                                        className="px-3 py-1 bg-rose-500/10 text-rose-400 rounded hover:bg-rose-500 hover:text-white transition-colors text-xs font-medium"
-                                                    >
-                                                        Del
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                        {records.length === 0 && (
+                            {/* Full History Table */}
+                            <div className="glass-panel rounded-2xl overflow-hidden">
+                                <div className="p-6 border-b border-white/5 flex justify-between items-center">
+                                    <h2 className="text-xl font-bold text-white tracking-wide">Full History</h2>
+                                    <div className="text-xs text-gray-500 uppercase">System Log v1.0</div>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead className="bg-ocean-depth/80">
                                             <tr>
-                                                <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
-                                                    No Data Available
-                                                </td>
+                                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">Date / Time</th>
+                                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">Duration</th>
+                                                <th className="px-6 py-4 text-right text-xs font-bold text-gray-300 uppercase tracking-wider">Amount</th>
+                                                <th className="px-6 py-4 text-center text-xs font-bold text-gray-300 uppercase tracking-wider">Actions</th>
                                             </tr>
-                                        )}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5">
+                                            {records.map((record) => (
+                                                <tr key={record.id} className="hover:bg-white/5 transition-colors group">
+                                                    <td className="px-6 py-4 text-sm text-gray-300 font-mono">
+                                                        {new Date(record.date).toLocaleString('th-TH')}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm font-mono text-white">
+                                                        {formatDuration(record.duration)}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm text-right font-bold text-emerald-400 font-mono">
+                                                        {record.amount.toLocaleString()} Rain
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm text-center space-x-2">
+                                                        <button
+                                                            onClick={() => handleEdit(record)}
+                                                            className="px-3 py-1 bg-ocean-blue/10 text-ocean-blue rounded hover:bg-ocean-blue hover:text-white transition-colors text-xs font-medium"
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDelete(record.id)}
+                                                            className="px-3 py-1 bg-rose-500/10 text-rose-400 rounded hover:bg-rose-500 hover:text-white transition-colors text-xs font-medium"
+                                                        >
+                                                            Del
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {records.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                                                        No Data Available
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    )
+                }
 
-                {activeTab === 'buysell' && (
+                {
+                    activeTab === 'buysell' && (
+                        <div className="w-full animate-fadeIn space-y-8">
+                            {/* Header & Add Button */}
+                            <div className="flex justify-between items-center">
+                                <h2 className="text-2xl font-bold text-white tracking-wide flex items-center">
+                                    <span className="w-1.5 h-8 bg-ocean-teal mr-3 rounded-full"></span>
+                                    Transaction Log
+                                </h2>
+                                <button
+                                    onClick={handleAddTransaction}
+                                    className="px-6 py-2 bg-ocean-teal hover:bg-teal-600 text-white rounded-lg shadow-lg shadow-ocean-teal/20 transition-all flex items-center space-x-2 font-bold tracking-wide transform hover:-translate-y-0.5"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
+                                    <span>New Entry</span>
+                                </button>
+                            </div>
+
+                            {/* Transactions Table */}
+                            <div className="glass-panel rounded-2xl overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead className="bg-ocean-depth/80">
+                                            <tr>
+                                                <th className="px-4 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">Status</th>
+                                                <th className="px-4 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">Item</th>
+                                                <th className="px-4 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">Date / Time</th>
+                                                <th className="px-4 py-4 text-right text-xs font-bold text-gray-300 uppercase tracking-wider">Rain</th>
+                                                <th className="px-4 py-4 text-right text-xs font-bold text-gray-300 uppercase tracking-wider">Baht</th>
+                                                <th className="px-4 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">Note</th>
+                                                <th className="px-4 py-4 text-center text-xs font-bold text-gray-300 uppercase tracking-wider">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5">
+                                            {transactions.map((t) => (
+                                                <tr key={t.id} className="hover:bg-white/5 transition-colors group">
+                                                    <td className="px-4 py-4">
+                                                        <span className={`px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${t.status === 'ซื้อ' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                                            t.status === 'ขาย' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
+                                                                'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                                            }`}>
+                                                            {t.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-4 text-sm text-white font-medium">{t.item}</td>
+                                                    <td className="px-4 py-4 text-sm text-gray-400 font-mono">
+                                                        {new Date(t.date_time).toLocaleString('th-TH')}
+                                                    </td>
+                                                    <td className="px-4 py-4 text-sm text-right text-ocean-blue font-mono">
+                                                        {t.rain_price.toLocaleString()}
+                                                    </td>
+                                                    <td className="px-4 py-4 text-sm text-right text-emerald-400 font-mono font-bold">
+                                                        {t.baht_price.toLocaleString()}
+                                                    </td>
+                                                    <td className="px-4 py-4 text-sm text-gray-400 truncate max-w-[150px]">{t.note}</td>
+                                                    <td className="px-4 py-4 text-sm text-center space-x-2">
+                                                        <button
+                                                            onClick={() => handleEditTransaction(t)}
+                                                            className="px-2 py-1 bg-ocean-blue/10 text-ocean-blue rounded hover:bg-ocean-blue hover:text-white transition-colors text-xs font-medium"
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteTransaction(t.id)}
+                                                            className="px-2 py-1 bg-rose-500/10 text-rose-400 rounded hover:bg-rose-500 hover:text-white transition-colors text-xs font-medium"
+                                                        >
+                                                            Del
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {transactions.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                                                        No Transactions Logged
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    )
+                }
+
+                {/* Backup Tab */}
+                {activeTab === 'backup' && (
                     <div className="w-full animate-fadeIn space-y-8">
-                        {/* Header & Add Button */}
-                        <div className="flex justify-between items-center">
-                            <h2 className="text-2xl font-bold text-white tracking-wide flex items-center">
+                        {/* Header */}
+                        <div className="text-center mb-8">
+                            <h2 className="text-3xl font-bold text-white tracking-wide flex items-center justify-center">
                                 <span className="w-1.5 h-8 bg-ocean-teal mr-3 rounded-full"></span>
-                                Transaction Log
+                                Data Backup & Restore
                             </h2>
+                            <p className="text-gray-400 mt-2 text-sm">Export and import your data safely</p>
+                        </div>
+
+                        {/* Export Section */}
+                        <div className="glass-panel p-6 sm:p-8 rounded-2xl">
+                            <div className="flex items-center mb-6">
+                                <svg className="w-6 h-6 text-ocean-teal mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                </svg>
+                                <h3 className="text-xl font-bold text-white">Export Data</h3>
+                            </div>
+                            <p className="text-gray-400 mb-6 text-sm">Download all your timer records and transactions as a JSON file</p>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <button
+                                    onClick={handleExportTimerRecords}
+                                    className="px-6 py-4 bg-gradient-to-r from-ocean-blue to-blue-600 hover:from-ocean-blue/90 hover:to-blue-500 text-white rounded-xl font-bold shadow-lg hover:shadow-ocean-blue/20 transition-all flex items-center justify-center space-x-2 transform hover:-translate-y-0.5"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    <span>Export Timer Records</span>
+                                </button>
+                                <button
+                                    onClick={handleExportTransactions}
+                                    className="px-6 py-4 bg-gradient-to-r from-ocean-teal to-teal-600 hover:from-ocean-teal/90 hover:to-teal-500 text-white rounded-xl font-bold shadow-lg hover:shadow-ocean-teal/20 transition-all flex items-center justify-center space-x-2 transform hover:-translate-y-0.5"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                    <span>Export Transactions</span>
+                                </button>
+                            </div>
+
                             <button
-                                onClick={handleAddTransaction}
-                                className="px-6 py-2 bg-ocean-teal hover:bg-teal-600 text-white rounded-lg shadow-lg shadow-ocean-teal/20 transition-all flex items-center space-x-2 font-bold tracking-wide transform hover:-translate-y-0.5"
+                                onClick={handleExportAll}
+                                className="w-full mt-4 px-6 py-4 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white rounded-xl font-bold shadow-lg hover:shadow-emerald-500/20 transition-all flex items-center justify-center space-x-2 transform hover:-translate-y-0.5"
                             >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
-                                <span>New Entry</span>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                                </svg>
+                                <span>Export All Data</span>
                             </button>
                         </div>
 
-                        {/* Transactions Table */}
-                        <div className="glass-panel rounded-2xl overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-ocean-depth/80">
-                                        <tr>
-                                            <th className="px-4 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">Status</th>
-                                            <th className="px-4 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">Item</th>
-                                            <th className="px-4 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">Date / Time</th>
-                                            <th className="px-4 py-4 text-right text-xs font-bold text-gray-300 uppercase tracking-wider">Rain</th>
-                                            <th className="px-4 py-4 text-right text-xs font-bold text-gray-300 uppercase tracking-wider">Baht</th>
-                                            <th className="px-4 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">Note</th>
-                                            <th className="px-4 py-4 text-center text-xs font-bold text-gray-300 uppercase tracking-wider">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-white/5">
-                                        {transactions.map((t) => (
-                                            <tr key={t.id} className="hover:bg-white/5 transition-colors group">
-                                                <td className="px-4 py-4">
-                                                    <span className={`px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${t.status === 'ซื้อ' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                                                        t.status === 'ขาย' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
-                                                            'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                                        }`}>
-                                                        {t.status}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-4 text-sm text-white font-medium">{t.item}</td>
-                                                <td className="px-4 py-4 text-sm text-gray-400 font-mono">
-                                                    {new Date(t.date_time).toLocaleString('th-TH')}
-                                                </td>
-                                                <td className="px-4 py-4 text-sm text-right text-ocean-blue font-mono">
-                                                    {t.rain_price.toLocaleString()}
-                                                </td>
-                                                <td className="px-4 py-4 text-sm text-right text-emerald-400 font-mono font-bold">
-                                                    {t.baht_price.toLocaleString()}
-                                                </td>
-                                                <td className="px-4 py-4 text-sm text-gray-400 truncate max-w-[150px]">{t.note}</td>
-                                                <td className="px-4 py-4 text-sm text-center space-x-2">
-                                                    <button
-                                                        onClick={() => handleEditTransaction(t)}
-                                                        className="px-2 py-1 bg-ocean-blue/10 text-ocean-blue rounded hover:bg-ocean-blue hover:text-white transition-colors text-xs font-medium"
-                                                    >
-                                                        Edit
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteTransaction(t.id)}
-                                                        className="px-2 py-1 bg-rose-500/10 text-rose-400 rounded hover:bg-rose-500 hover:text-white transition-colors text-xs font-medium"
-                                                    >
-                                                        Del
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                        {transactions.length === 0 && (
-                                            <tr>
-                                                <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                                                    No Transactions Logged
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </table>
+                        {/* Import Section */}
+                        <div className="glass-panel p-6 sm:p-8 rounded-2xl">
+                            <div className="flex items-center mb-6">
+                                <svg className="w-6 h-6 text-amber-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                                </svg>
+                                <h3 className="text-xl font-bold text-white">Import Data</h3>
+                            </div>
+                            <p className="text-gray-400 mb-6 text-sm">Upload a JSON file to restore your data</p>
+
+                            <div className="border-2 border-dashed border-white/10 rounded-xl p-8 text-center hover:border-ocean-teal/50 transition-colors">
+                                <input
+                                    type="file"
+                                    accept=".json"
+                                    onChange={handleImportData}
+                                    className="hidden"
+                                    id="import-file"
+                                />
+                                <label
+                                    htmlFor="import-file"
+                                    className="cursor-pointer flex flex-col items-center space-y-4"
+                                >
+                                    <div className="w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-400 border border-amber-500/20">
+                                        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p className="text-white font-bold mb-1">Click to upload or drag and drop</p>
+                                        <p className="text-gray-500 text-sm">JSON files only</p>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div className="mt-6 bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
+                                <div className="flex items-start space-x-3">
+                                    <svg className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                    </svg>
+                                    <div className="text-sm text-amber-200">
+                                        <p className="font-bold mb-1">Warning</p>
+                                        <p className="text-amber-300/80">Importing data will add to your existing records. Make sure to export your current data before importing to avoid data loss.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Statistics */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <div className="glass-panel p-6 rounded-2xl border-l-4 border-l-ocean-blue">
+                                <div className="text-gray-400 mb-2 uppercase tracking-wider text-xs">Timer Records</div>
+                                <div className="text-4xl font-bold text-white">{records.length}</div>
+                            </div>
+                            <div className="glass-panel p-6 rounded-2xl border-l-4 border-l-ocean-teal">
+                                <div className="text-gray-400 mb-2 uppercase tracking-wider text-xs">Transactions</div>
+                                <div className="text-4xl font-bold text-white">{transactions.length}</div>
                             </div>
                         </div>
                     </div>
                 )}
-            </div>
+            </div >
 
             {/* Payment Modal */}
-            {showModal && (
-                <div className="fixed inset-0 bg-ocean-dark/90 backdrop-blur-md flex items-center justify-center z-50 animate-fadeIn">
-                    <div className="glass-panel p-8 rounded-3xl max-w-md w-full mx-4 border border-white/10 shadow-2xl transform scale-100 animate-scaleIn">
-                        <h3 className="text-2xl font-bold mb-6 text-center text-white tracking-wide">Save Record</h3>
-                        <div className="space-y-6">
-                            <div className="bg-ocean-depth border border-white/5 p-4 rounded-xl text-center">
-                                <div className="text-gray-400 text-xs uppercase tracking-wider mb-1">Duration</div>
-                                <div className="text-3xl font-mono font-bold text-ocean-teal">{formatDuration(savedTime)}</div>
-                            </div>
-                            <div>
-                                <label className="block text-gray-300 mb-2 text-xs font-bold uppercase tracking-wider">Amount (Rain)</label>
-                                <input
-                                    type="number"
-                                    value={amount}
-                                    onChange={(e) => setAmount(e.target.value)}
-                                    className="w-full bg-ocean-depth border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-ocean-teal focus:ring-1 focus:ring-ocean-teal transition-all text-lg font-mono text-right"
-                                    placeholder="0"
-                                    autoFocus
-                                />
-                            </div>
-                            <div className="flex space-x-4 pt-4">
-                                <button
-                                    onClick={handleCloseModal}
-                                    className="flex-1 px-6 py-3 border border-gray-600 text-gray-400 hover:border-white hover:text-white rounded-xl font-bold transition-colors uppercase tracking-wider text-sm"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleSaveRecord}
-                                    className="flex-1 px-6 py-3 bg-ocean-teal text-white hover:bg-teal-600 rounded-xl font-bold shadow-lg shadow-ocean-teal/30 transition-colors uppercase tracking-wider text-sm"
-                                >
-                                    Save
-                                </button>
+            {
+                showModal && (
+                    <div className="fixed inset-0 bg-ocean-dark/90 backdrop-blur-md flex items-center justify-center z-50 animate-fadeIn">
+                        <div className="glass-panel p-8 rounded-3xl max-w-md w-full mx-4 border border-white/10 shadow-2xl transform scale-100 animate-scaleIn">
+                            <h3 className="text-2xl font-bold mb-6 text-center text-white tracking-wide">Save Record</h3>
+                            <div className="space-y-6">
+                                <div className="bg-ocean-depth border border-white/5 p-4 rounded-xl text-center">
+                                    <div className="text-gray-400 text-xs uppercase tracking-wider mb-1">Duration</div>
+                                    <div className="text-3xl font-mono font-bold text-ocean-teal">{formatDuration(savedTime)}</div>
+                                </div>
+                                <div>
+                                    <label className="block text-gray-300 mb-2 text-xs font-bold uppercase tracking-wider">Amount (Rain)</label>
+                                    <input
+                                        type="number"
+                                        value={amount}
+                                        onChange={(e) => setAmount(e.target.value)}
+                                        className="w-full bg-ocean-depth border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-ocean-teal focus:ring-1 focus:ring-ocean-teal transition-all text-lg font-mono text-right"
+                                        placeholder="0"
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="flex space-x-4 pt-4">
+                                    <button
+                                        onClick={handleCloseModal}
+                                        className="flex-1 px-6 py-3 border border-gray-600 text-gray-400 hover:border-white hover:text-white rounded-xl font-bold transition-colors uppercase tracking-wider text-sm"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleSaveRecord}
+                                        className="flex-1 px-6 py-3 bg-ocean-teal text-white hover:bg-teal-600 rounded-xl font-bold shadow-lg shadow-ocean-teal/30 transition-colors uppercase tracking-wider text-sm"
+                                    >
+                                        Save
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Edit Timer Record Modal */}
-            {showEditModal && (
-                <div className="fixed inset-0 bg-ocean-dark/90 backdrop-blur-md flex items-center justify-center z-50 animate-fadeIn">
-                    <div className="glass-panel p-8 rounded-3xl max-w-md w-full mx-4 border border-white/10 shadow-2xl transform scale-100 animate-scaleIn">
-                        <h3 className="text-2xl font-bold mb-6 text-center text-white tracking-wide">Edit Record</h3>
-                        <div className="space-y-6">
-                            <div className="bg-ocean-depth border border-white/5 p-4 rounded-xl text-center">
-                                <div className="text-gray-400 text-xs uppercase tracking-wider mb-1">Duration</div>
-                                <div className="text-3xl font-mono font-bold text-ocean-teal">
-                                    {editingRecord ? formatDuration(editingRecord.duration) : '00:00:00'}
+            {
+                showEditModal && (
+                    <div className="fixed inset-0 bg-ocean-dark/90 backdrop-blur-md flex items-center justify-center z-50 animate-fadeIn">
+                        <div className="glass-panel p-8 rounded-3xl max-w-md w-full mx-4 border border-white/10 shadow-2xl transform scale-100 animate-scaleIn">
+                            <h3 className="text-2xl font-bold mb-6 text-center text-white tracking-wide">Edit Record</h3>
+                            <div className="space-y-6">
+                                <div className="bg-ocean-depth border border-white/5 p-4 rounded-xl text-center">
+                                    <div className="text-gray-400 text-xs uppercase tracking-wider mb-1">Duration</div>
+                                    <div className="text-3xl font-mono font-bold text-ocean-teal">
+                                        {editingRecord ? formatDuration(editingRecord.duration) : '00:00:00'}
+                                    </div>
                                 </div>
-                            </div>
-                            <div>
-                                <label className="block text-gray-300 mb-2 text-xs font-bold uppercase tracking-wider">Amount (Rain)</label>
-                                <input
-                                    type="number"
-                                    value={editAmount}
-                                    onChange={(e) => setEditAmount(e.target.value)}
-                                    className="w-full bg-ocean-depth border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-ocean-teal focus:ring-1 focus:ring-ocean-teal transition-all text-lg font-mono text-right"
-                                    placeholder="0"
-                                    autoFocus
-                                />
-                            </div>
-                            <div className="flex space-x-4 pt-4">
-                                <button
-                                    onClick={handleCloseEditModal}
-                                    className="flex-1 px-6 py-3 border border-gray-600 text-gray-400 hover:border-white hover:text-white rounded-xl font-bold transition-colors uppercase tracking-wider text-sm"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleSaveEdit}
-                                    className="flex-1 px-6 py-3 bg-ocean-teal text-white hover:bg-teal-600 rounded-xl font-bold shadow-lg shadow-ocean-teal/30 transition-colors uppercase tracking-wider text-sm"
-                                >
-                                    Save
-                                </button>
+                                <div>
+                                    <label className="block text-gray-300 mb-2 text-xs font-bold uppercase tracking-wider">Amount (Rain)</label>
+                                    <input
+                                        type="number"
+                                        value={editAmount}
+                                        onChange={(e) => setEditAmount(e.target.value)}
+                                        className="w-full bg-ocean-depth border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-ocean-teal focus:ring-1 focus:ring-ocean-teal transition-all text-lg font-mono text-right"
+                                        placeholder="0"
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="flex space-x-4 pt-4">
+                                    <button
+                                        onClick={handleCloseEditModal}
+                                        className="flex-1 px-6 py-3 border border-gray-600 text-gray-400 hover:border-white hover:text-white rounded-xl font-bold transition-colors uppercase tracking-wider text-sm"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleSaveEdit}
+                                        className="flex-1 px-6 py-3 bg-ocean-teal text-white hover:bg-teal-600 rounded-xl font-bold shadow-lg shadow-ocean-teal/30 transition-colors uppercase tracking-wider text-sm"
+                                    >
+                                        Save
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Delete Timer Record Confirmation */}
-            {showDeleteConfirm && (
-                <div className="fixed inset-0 bg-ocean-dark/90 backdrop-blur-md flex items-center justify-center z-50 animate-fadeIn">
-                    <div className="glass-panel p-8 rounded-3xl max-w-sm w-full mx-4 border border-white/10 shadow-2xl transform scale-100 animate-scaleIn text-center">
-                        <div className="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-500 border border-rose-500/20">
-                            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                        </div>
-                        <h3 className="text-xl font-bold mb-2 text-white uppercase tracking-wide">Confirm Deletion</h3>
-                        <p className="text-gray-400 mb-6 text-sm">Are you sure you want to delete this record? This action cannot be undone.</p>
-                        <div className="flex space-x-4">
-                            <button
-                                onClick={() => setShowDeleteConfirm(false)}
-                                className="flex-1 px-4 py-2 border border-gray-600 text-gray-400 hover:border-white hover:text-white rounded-xl font-bold transition-colors uppercase tracking-wider text-sm"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={confirmDelete}
-                                className="flex-1 px-4 py-2 bg-rose-600 text-white hover:bg-rose-500 rounded-xl font-bold shadow-lg shadow-rose-600/30 transition-colors uppercase tracking-wider text-sm"
-                            >
-                                Delete
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Add/Edit Transaction Modal */}
-            {(showAddTransactionModal || showEditTransactionModal) && (
-                <div className="fixed inset-0 bg-ocean-dark/90 backdrop-blur-md flex items-center justify-center z-50 animate-fadeIn">
-                    <div className="glass-panel p-8 rounded-3xl max-w-md w-full mx-4 border border-white/10 shadow-2xl transform scale-100 animate-scaleIn">
-                        <h3 className="text-2xl font-bold mb-6 text-center text-white tracking-wide">
-                            {showAddTransactionModal ? 'New Transaction' : 'Edit Transaction'}
-                        </h3>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-gray-300 mb-2 text-xs font-bold uppercase tracking-wider">Status</label>
-                                <select
-                                    value={transactionForm.status}
-                                    onChange={(e) => setTransactionForm({ ...transactionForm, status: e.target.value as any })}
-                                    className="w-full bg-ocean-depth border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-ocean-teal focus:ring-1 focus:ring-ocean-teal"
-                                >
-                                    <option value="ซื้อ" className="bg-ocean-depth">ซื้อ (Buy)</option>
-                                    <option value="ขาย" className="bg-ocean-depth">ขาย (Sell)</option>
-                                    <option value="เทริน" className="bg-ocean-depth">เทริน (Trade)</option>
-                                </select>
+            {
+                showDeleteConfirm && (
+                    <div className="fixed inset-0 bg-ocean-dark/90 backdrop-blur-md flex items-center justify-center z-50 animate-fadeIn">
+                        <div className="glass-panel p-8 rounded-3xl max-w-sm w-full mx-4 border border-white/10 shadow-2xl transform scale-100 animate-scaleIn text-center">
+                            <div className="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-500 border border-rose-500/20">
+                                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                             </div>
-                            <div>
-                                <label className="block text-gray-300 mb-2 text-xs font-bold uppercase tracking-wider">Item Name</label>
-                                <input
-                                    type="text"
-                                    value={transactionForm.item}
-                                    onChange={(e) => setTransactionForm({ ...transactionForm, item: e.target.value })}
-                                    className="w-full bg-ocean-depth border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-ocean-teal focus:ring-1 focus:ring-ocean-teal"
-                                    placeholder="Item Name"
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-gray-300 mb-2 text-xs font-bold uppercase tracking-wider">Rain</label>
-                                    <input
-                                        type="number"
-                                        value={transactionForm.rainPrice}
-                                        onChange={(e) => setTransactionForm({ ...transactionForm, rainPrice: e.target.value })}
-                                        className="w-full bg-ocean-depth border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-ocean-teal focus:ring-1 focus:ring-ocean-teal text-right font-mono"
-                                        placeholder="0"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-300 mb-2 text-xs font-bold uppercase tracking-wider">Baht</label>
-                                    <input
-                                        type="number"
-                                        value={transactionForm.bahtPrice}
-                                        onChange={(e) => setTransactionForm({ ...transactionForm, bahtPrice: e.target.value })}
-                                        className="w-full bg-ocean-depth border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-ocean-teal focus:ring-1 focus:ring-ocean-teal text-right font-mono"
-                                        placeholder="0"
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-gray-300 mb-2 text-xs font-bold uppercase tracking-wider">Note</label>
-                                <textarea
-                                    value={transactionForm.note}
-                                    onChange={(e) => setTransactionForm({ ...transactionForm, note: e.target.value })}
-                                    className="w-full bg-ocean-depth border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-ocean-teal focus:ring-1 focus:ring-ocean-teal h-24 resize-none"
-                                    placeholder="Additional notes..."
-                                />
-                            </div>
-                            <div className="flex space-x-4 pt-4">
+                            <h3 className="text-xl font-bold mb-2 text-white uppercase tracking-wide">Confirm Deletion</h3>
+                            <p className="text-gray-400 mb-6 text-sm">Are you sure you want to delete this record? This action cannot be undone.</p>
+                            <div className="flex space-x-4">
                                 <button
-                                    onClick={() => {
-                                        setShowAddTransactionModal(false)
-                                        setShowEditTransactionModal(false)
-                                    }}
-                                    className="flex-1 px-6 py-3 border border-gray-600 text-gray-400 hover:border-white hover:text-white rounded-xl font-bold transition-colors uppercase tracking-wider text-sm"
+                                    onClick={() => setShowDeleteConfirm(false)}
+                                    className="flex-1 px-4 py-2 border border-gray-600 text-gray-400 hover:border-white hover:text-white rounded-xl font-bold transition-colors uppercase tracking-wider text-sm"
                                 >
                                     Cancel
                                 </button>
                                 <button
-                                    onClick={showAddTransactionModal ? handleSaveTransaction : handleSaveEditTransaction}
-                                    className="flex-1 px-6 py-3 bg-ocean-teal text-white hover:bg-teal-600 rounded-xl font-bold shadow-lg shadow-ocean-teal/30 transition-colors uppercase tracking-wider text-sm"
+                                    onClick={confirmDelete}
+                                    className="flex-1 px-4 py-2 bg-rose-600 text-white hover:bg-rose-500 rounded-xl font-bold shadow-lg shadow-rose-600/30 transition-colors uppercase tracking-wider text-sm"
                                 >
-                                    Save
+                                    Delete
                                 </button>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
-            {/* Delete Transaction Confirmation */}
-            {showDeleteTransactionConfirm && (
-                <div className="fixed inset-0 bg-ocean-dark/90 backdrop-blur-md flex items-center justify-center z-50 animate-fadeIn">
-                    <div className="glass-panel p-8 rounded-3xl max-w-sm w-full mx-4 border border-white/10 shadow-2xl transform scale-100 animate-scaleIn text-center">
-                        <div className="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-500 border border-rose-500/20">
-                            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                        </div>
-                        <h3 className="text-xl font-bold mb-2 text-white uppercase tracking-wide">Confirm Deletion</h3>
-                        <p className="text-gray-400 mb-6 text-sm">Are you sure you want to delete this transaction? This action cannot be undone.</p>
-                        <div className="flex space-x-4">
-                            <button
-                                onClick={() => setShowDeleteTransactionConfirm(false)}
-                                className="flex-1 px-4 py-2 border border-gray-600 text-gray-400 hover:border-white hover:text-white rounded-xl font-bold transition-colors uppercase tracking-wider text-sm"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={confirmDeleteTransaction}
-                                className="flex-1 px-4 py-2 bg-rose-600 text-white hover:bg-rose-500 rounded-xl font-bold shadow-lg shadow-rose-600/30 transition-colors uppercase tracking-wider text-sm"
-                            >
-                                Delete
-                            </button>
+            {/* Add/Edit Transaction Modal */}
+            {
+                (showAddTransactionModal || showEditTransactionModal) && (
+                    <div className="fixed inset-0 bg-ocean-dark/90 backdrop-blur-md flex items-center justify-center z-50 animate-fadeIn">
+                        <div className="glass-panel p-8 rounded-3xl max-w-md w-full mx-4 border border-white/10 shadow-2xl transform scale-100 animate-scaleIn">
+                            <h3 className="text-2xl font-bold mb-6 text-center text-white tracking-wide">
+                                {showAddTransactionModal ? 'New Transaction' : 'Edit Transaction'}
+                            </h3>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-gray-300 mb-2 text-xs font-bold uppercase tracking-wider">Status</label>
+                                    <select
+                                        value={transactionForm.status}
+                                        onChange={(e) => setTransactionForm({ ...transactionForm, status: e.target.value as any })}
+                                        className="w-full bg-ocean-depth border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-ocean-teal focus:ring-1 focus:ring-ocean-teal"
+                                    >
+                                        <option value="ซื้อ" className="bg-ocean-depth">ซื้อ (Buy)</option>
+                                        <option value="ขาย" className="bg-ocean-depth">ขาย (Sell)</option>
+                                        <option value="เทริน" className="bg-ocean-depth">เทริน (Trade)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-gray-300 mb-2 text-xs font-bold uppercase tracking-wider">Item Name</label>
+                                    <input
+                                        type="text"
+                                        value={transactionForm.item}
+                                        onChange={(e) => setTransactionForm({ ...transactionForm, item: e.target.value })}
+                                        className="w-full bg-ocean-depth border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-ocean-teal focus:ring-1 focus:ring-ocean-teal"
+                                        placeholder="Item Name"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-gray-300 mb-2 text-xs font-bold uppercase tracking-wider">Rain</label>
+                                        <input
+                                            type="number"
+                                            value={transactionForm.rainPrice}
+                                            onChange={(e) => setTransactionForm({ ...transactionForm, rainPrice: e.target.value })}
+                                            className="w-full bg-ocean-depth border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-ocean-teal focus:ring-1 focus:ring-ocean-teal text-right font-mono"
+                                            placeholder="0"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-300 mb-2 text-xs font-bold uppercase tracking-wider">Baht</label>
+                                        <input
+                                            type="number"
+                                            value={transactionForm.bahtPrice}
+                                            onChange={(e) => setTransactionForm({ ...transactionForm, bahtPrice: e.target.value })}
+                                            className="w-full bg-ocean-depth border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-ocean-teal focus:ring-1 focus:ring-ocean-teal text-right font-mono"
+                                            placeholder="0"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-gray-300 mb-2 text-xs font-bold uppercase tracking-wider">Note</label>
+                                    <textarea
+                                        value={transactionForm.note}
+                                        onChange={(e) => setTransactionForm({ ...transactionForm, note: e.target.value })}
+                                        className="w-full bg-ocean-depth border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-ocean-teal focus:ring-1 focus:ring-ocean-teal h-24 resize-none"
+                                        placeholder="Additional notes..."
+                                    />
+                                </div>
+                                <div className="flex space-x-4 pt-4">
+                                    <button
+                                        onClick={() => {
+                                            setShowAddTransactionModal(false)
+                                            setShowEditTransactionModal(false)
+                                        }}
+                                        className="flex-1 px-6 py-3 border border-gray-600 text-gray-400 hover:border-white hover:text-white rounded-xl font-bold transition-colors uppercase tracking-wider text-sm"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={showAddTransactionModal ? handleSaveTransaction : handleSaveEditTransaction}
+                                        className="flex-1 px-6 py-3 bg-ocean-teal text-white hover:bg-teal-600 rounded-xl font-bold shadow-lg shadow-ocean-teal/30 transition-colors uppercase tracking-wider text-sm"
+                                    >
+                                        Save
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </main>
+                )
+            }
+
+            {/* Delete Transaction Confirmation */}
+            {
+                showDeleteTransactionConfirm && (
+                    <div className="fixed inset-0 bg-ocean-dark/90 backdrop-blur-md flex items-center justify-center z-50 animate-fadeIn">
+                        <div className="glass-panel p-8 rounded-3xl max-w-sm w-full mx-4 border border-white/10 shadow-2xl transform scale-100 animate-scaleIn text-center">
+                            <div className="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-500 border border-rose-500/20">
+                                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </div>
+                            <h3 className="text-xl font-bold mb-2 text-white uppercase tracking-wide">Confirm Deletion</h3>
+                            <p className="text-gray-400 mb-6 text-sm">Are you sure you want to delete this transaction? This action cannot be undone.</p>
+                            <div className="flex space-x-4">
+                                <button
+                                    onClick={() => setShowDeleteTransactionConfirm(false)}
+                                    className="flex-1 px-4 py-2 border border-gray-600 text-gray-400 hover:border-white hover:text-white rounded-xl font-bold transition-colors uppercase tracking-wider text-sm"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={confirmDeleteTransaction}
+                                    className="flex-1 px-4 py-2 bg-rose-600 text-white hover:bg-rose-500 rounded-xl font-bold shadow-lg shadow-rose-600/30 transition-colors uppercase tracking-wider text-sm"
+                                >
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+        </main >
     )
 }

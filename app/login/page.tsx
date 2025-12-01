@@ -11,6 +11,7 @@ export default function LoginPage() {
         username: '',
         password: ''
     })
+    const [rememberMe, setRememberMe] = useState(false)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
 
@@ -56,11 +57,10 @@ export default function LoginPage() {
             </div>
 
             <div className="glass-panel p-8 rounded-3xl max-w-md w-full border border-white/10 shadow-2xl z-10">
-                <div className="text-center mb-8">
-                    <h1 className="text-4xl font-bold text-white mb-2">
+                <div className="mb-8">
+                    <h1 className="text-4xl font-bold text-white mb-2 text-center">
                         RC Garage <span className="text-ocean-teal">Login</span>
                     </h1>
-                    <div className="h-1 w-16 bg-gradient-to-r from-ocean-blue to-ocean-teal mx-auto rounded-full"></div>
                 </div>
 
                 <form onSubmit={handleLogin} className="space-y-4">
@@ -90,6 +90,19 @@ export default function LoginPage() {
                             placeholder="••••••••"
                             required
                         />
+                    </div>
+
+                    <div className="flex items-center">
+                        <input
+                            type="checkbox"
+                            id="rememberMe"
+                            checked={rememberMe}
+                            onChange={(e) => setRememberMe(e.target.checked)}
+                            className="w-4 h-4 bg-ocean-depth border border-white/10 rounded text-ocean-teal focus:ring-ocean-teal focus:ring-2"
+                        />
+                        <label htmlFor="rememberMe" className="ml-2 text-sm text-gray-300 cursor-pointer">
+                            Remember me
+                        </label>
                     </div>
 
                     {error && (

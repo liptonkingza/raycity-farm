@@ -396,8 +396,8 @@ export default function TimerPage() {
                         <button
                             onClick={() => setActiveTab('timer')}
                             className={`px-6 py-2 rounded-lg transition-all duration-300 font-medium tracking-wide whitespace-nowrap ${activeTab === 'timer'
-                                    ? 'bg-gradient-to-r from-ocean-blue/20 to-ocean-teal/20 text-ocean-blue border border-ocean-blue/30 shadow-soft-blue'
-                                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                                ? 'bg-gradient-to-r from-ocean-blue/20 to-ocean-teal/20 text-ocean-blue border border-ocean-blue/30 shadow-soft-blue'
+                                : 'text-gray-400 hover:text-white hover:bg-white/5'
                                 }`}
                         >
                             Timer
@@ -405,8 +405,8 @@ export default function TimerPage() {
                         <button
                             onClick={() => setActiveTab('summary')}
                             className={`px-6 py-2 rounded-lg transition-all duration-300 font-medium tracking-wide whitespace-nowrap ${activeTab === 'summary'
-                                    ? 'bg-gradient-to-r from-ocean-blue/20 to-ocean-teal/20 text-ocean-blue border border-ocean-blue/30 shadow-soft-blue'
-                                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                                ? 'bg-gradient-to-r from-ocean-blue/20 to-ocean-teal/20 text-ocean-blue border border-ocean-blue/30 shadow-soft-blue'
+                                : 'text-gray-400 hover:text-white hover:bg-white/5'
                                 }`}
                         >
                             Summary
@@ -414,8 +414,8 @@ export default function TimerPage() {
                         <button
                             onClick={() => setActiveTab('buysell')}
                             className={`px-6 py-2 rounded-lg transition-all duration-300 font-medium tracking-wide whitespace-nowrap ${activeTab === 'buysell'
-                                    ? 'bg-gradient-to-r from-ocean-blue/20 to-ocean-teal/20 text-ocean-blue border border-ocean-blue/30 shadow-soft-blue'
-                                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                                ? 'bg-gradient-to-r from-ocean-blue/20 to-ocean-teal/20 text-ocean-blue border border-ocean-blue/30 shadow-soft-blue'
+                                : 'text-gray-400 hover:text-white hover:bg-white/5'
                                 }`}
                         >
                             Buy / Sell
@@ -625,8 +625,8 @@ export default function TimerPage() {
                                             <tr key={t.id} className="hover:bg-white/5 transition-colors group">
                                                 <td className="px-4 py-4">
                                                     <span className={`px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${t.status === 'ซื้อ' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                                                            t.status === 'ขาย' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
-                                                                'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                                        t.status === 'ขาย' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
+                                                            'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                                                         }`}>
                                                         {t.status}
                                                     </span>

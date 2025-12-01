@@ -1,22 +1,25 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { supabase } from '@/lib/supabase'
 
 interface TimerRecord {
-    id: string
+    id: number
+    created_at: string
     date: string
     duration: number
     amount: number
-    hourlyRate: number
+    hourly_rate: number
 }
 
 interface Transaction {
-    id: string
+    id: number
+    created_at: string
     status: 'ซื้อ' | 'ขาย' | 'เทริน'
     item: string
-    dateTime: string
-    rainPrice: number
-    bahtPrice: number
+    date_time: string
+    rain_price: number
+    baht_price: number
     note: string
 }
 
@@ -39,7 +42,7 @@ export default function TimerPage() {
     const [editingRecord, setEditingRecord] = useState<TimerRecord | null>(null)
     const [editAmount, setEditAmount] = useState('')
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-    const [deletingId, setDeletingId] = useState<string | null>(null)
+    const [deletingId, setDeletingId] = useState<number | null>(null)
 
     // Transaction State
     const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -47,7 +50,7 @@ export default function TimerPage() {
     const [showEditTransactionModal, setShowEditTransactionModal] = useState(false)
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
     const [showDeleteTransactionConfirm, setShowDeleteTransactionConfirm] = useState(false)
-    const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(null)
+    const [deletingTransactionId, setDeletingTransactionId] = useState<number | null>(null)
 
     // Transaction Form State
     const [transactionForm, setTransactionForm] = useState({
@@ -58,39 +61,37 @@ export default function TimerPage() {
         note: ''
     })
 
-    // Backup State
-    const [importError, setImportError] = useState<string | null>(null)
-    const [showResetConfirm, setShowResetConfirm] = useState(false)
-
-    // Load data from LocalStorage on mount
+    // Load data from Supabase on mount
     useEffect(() => {
-        const storedRecords = localStorage.getItem('rc_garage_timer_records')
-        if (storedRecords) {
-            try {
-                setRecords(JSON.parse(storedRecords))
-            } catch (e) {
-                console.error('Failed to parse timer records', e)
-            }
-        }
-
-        const storedTransactions = localStorage.getItem('rc_garage_transactions')
-        if (storedTransactions) {
-            try {
-                setTransactions(JSON.parse(storedTransactions))
-            } catch (e) {
-                console.error('Failed to parse transactions', e)
-            }
-        }
+        fetchRecords()
+        fetchTransactions()
     }, [])
 
-    // Save to LocalStorage whenever data changes
-    useEffect(() => {
-        localStorage.setItem('rc_garage_timer_records', JSON.stringify(records))
-    }, [records])
+    const fetchRecords = async () => {
+        const { data, error } = await supabase
+            .from('timer_records')
+            .select('*')
+            .order('date', { ascending: false })
 
-    useEffect(() => {
-        localStorage.setItem('rc_garage_transactions', JSON.stringify(transactions))
-    }, [transactions])
+        if (error) {
+            console.error('Error fetching records:', error)
+        } else {
+            setRecords(data || [])
+        }
+    }
+
+    const fetchTransactions = async () => {
+        const { data, error } = await supabase
+            .from('transactions')
+            .select('*')
+            .order('date_time', { ascending: false })
+
+        if (error) {
+            console.error('Error fetching transactions:', error)
+        } else {
+            setTransactions(data || [])
+        }
+    }
 
     useEffect(() => {
         if (isRunning) {
@@ -160,7 +161,7 @@ export default function TimerPage() {
         setShowModal(true)
     }
 
-    const handleSaveRecord = () => {
+    const handleSaveRecord = async () => {
         const amountNum = parseFloat(amount)
         if (isNaN(amountNum) || amountNum <= 0) {
             alert('กรุณากรอกจำนวนเงินที่ถูกต้อง')
@@ -168,19 +169,28 @@ export default function TimerPage() {
         }
 
         const hourlyRate = calculateHourlyRate(savedTime, amountNum)
-        const newRecord: TimerRecord = {
-            id: Date.now().toString(),
-            date: new Date().toISOString(),
-            duration: savedTime,
-            amount: amountNum,
-            hourlyRate: hourlyRate,
-        }
 
-        setRecords(prev => [newRecord, ...prev])
-        setShowModal(false)
-        setAmount('')
-        setTime(0)
-        setSavedTime(0)
+        const { error } = await supabase
+            .from('timer_records')
+            .insert([
+                {
+                    date: new Date().toISOString(),
+                    duration: savedTime,
+                    amount: amountNum,
+                    hourly_rate: hourlyRate,
+                }
+            ])
+
+        if (error) {
+            console.error('Error saving record:', error)
+            alert('Failed to save record')
+        } else {
+            setShowModal(false)
+            setAmount('')
+            setTime(0)
+            setSavedTime(0)
+            fetchRecords()
+        }
     }
 
     const handleCloseModal = () => {
@@ -197,7 +207,7 @@ export default function TimerPage() {
         setShowEditModal(true)
     }
 
-    const handleSaveEdit = () => {
+    const handleSaveEdit = async () => {
         if (!editingRecord) return
 
         const amountNum = parseFloat(editAmount)
@@ -207,16 +217,24 @@ export default function TimerPage() {
         }
 
         const hourlyRate = calculateHourlyRate(editingRecord.duration, amountNum)
-        const updatedRecord: TimerRecord = {
-            ...editingRecord,
-            amount: amountNum,
-            hourlyRate: hourlyRate,
-        }
 
-        setRecords(prev => prev.map(r => r.id === editingRecord.id ? updatedRecord : r))
-        setShowEditModal(false)
-        setEditingRecord(null)
-        setEditAmount('')
+        const { error } = await supabase
+            .from('timer_records')
+            .update({
+                amount: amountNum,
+                hourly_rate: hourlyRate
+            })
+            .eq('id', editingRecord.id)
+
+        if (error) {
+            console.error('Error updating record:', error)
+            alert('Failed to update record')
+        } else {
+            setShowEditModal(false)
+            setEditingRecord(null)
+            setEditAmount('')
+            fetchRecords()
+        }
     }
 
     const handleCloseEditModal = () => {
@@ -226,16 +244,27 @@ export default function TimerPage() {
     }
 
     // Delete functions
-    const handleDelete = (id: string) => {
+    const handleDelete = (id: number) => {
         setDeletingId(id)
         setShowDeleteConfirm(true)
     }
 
-    const confirmDelete = () => {
+    const confirmDelete = async () => {
         if (!deletingId) return
-        setRecords(prev => prev.filter(r => r.id !== deletingId))
-        setShowDeleteConfirm(false)
-        setDeletingId(null)
+
+        const { error } = await supabase
+            .from('timer_records')
+            .delete()
+            .eq('id', deletingId)
+
+        if (error) {
+            console.error('Error deleting record:', error)
+            alert('Failed to delete record')
+        } else {
+            setShowDeleteConfirm(false)
+            setDeletingId(null)
+            fetchRecords()
+        }
     }
 
     // Transaction functions
@@ -250,24 +279,32 @@ export default function TimerPage() {
         setShowAddTransactionModal(true)
     }
 
-    const handleSaveTransaction = () => {
+    const handleSaveTransaction = async () => {
         if (!transactionForm.item) {
             alert('กรุณากรอกชื่อรายการ')
             return
         }
 
-        const newTransaction: Transaction = {
-            id: Date.now().toString(),
-            status: transactionForm.status,
-            item: transactionForm.item,
-            dateTime: new Date().toISOString(),
-            rainPrice: parseFloat(transactionForm.rainPrice) || 0,
-            bahtPrice: parseFloat(transactionForm.bahtPrice) || 0,
-            note: transactionForm.note
-        }
+        const { error } = await supabase
+            .from('transactions')
+            .insert([
+                {
+                    status: transactionForm.status,
+                    item: transactionForm.item,
+                    date_time: new Date().toISOString(),
+                    rain_price: parseFloat(transactionForm.rainPrice) || 0,
+                    baht_price: parseFloat(transactionForm.bahtPrice) || 0,
+                    note: transactionForm.note
+                }
+            ])
 
-        setTransactions(prev => [newTransaction, ...prev])
-        setShowAddTransactionModal(false)
+        if (error) {
+            console.error('Error saving transaction:', error)
+            alert('Failed to save transaction')
+        } else {
+            setShowAddTransactionModal(false)
+            fetchTransactions()
+        }
     }
 
     const handleEditTransaction = (transaction: Transaction) => {
@@ -275,14 +312,14 @@ export default function TimerPage() {
         setTransactionForm({
             status: transaction.status,
             item: transaction.item,
-            rainPrice: transaction.rainPrice.toString(),
-            bahtPrice: transaction.bahtPrice.toString(),
+            rainPrice: transaction.rain_price.toString(),
+            bahtPrice: transaction.baht_price.toString(),
             note: transaction.note
         })
         setShowEditTransactionModal(true)
     }
 
-    const handleSaveEditTransaction = () => {
+    const handleSaveEditTransaction = async () => {
         if (!editingTransaction) return
 
         if (!transactionForm.item) {
@@ -290,91 +327,48 @@ export default function TimerPage() {
             return
         }
 
-        const updatedTransaction: Transaction = {
-            ...editingTransaction,
-            status: transactionForm.status,
-            item: transactionForm.item,
-            rainPrice: parseFloat(transactionForm.rainPrice) || 0,
-            bahtPrice: parseFloat(transactionForm.bahtPrice) || 0,
-            note: transactionForm.note
-        }
+        const { error } = await supabase
+            .from('transactions')
+            .update({
+                status: transactionForm.status,
+                item: transactionForm.item,
+                rain_price: parseFloat(transactionForm.rainPrice) || 0,
+                baht_price: parseFloat(transactionForm.bahtPrice) || 0,
+                note: transactionForm.note
+            })
+            .eq('id', editingTransaction.id)
 
-        setTransactions(prev => prev.map(t => t.id === editingTransaction.id ? updatedTransaction : t))
-        setShowEditTransactionModal(false)
-        setEditingTransaction(null)
+        if (error) {
+            console.error('Error updating transaction:', error)
+            alert('Failed to update transaction')
+        } else {
+            setShowEditTransactionModal(false)
+            setEditingTransaction(null)
+            fetchTransactions()
+        }
     }
 
-    const handleDeleteTransaction = (id: string) => {
+    const handleDeleteTransaction = (id: number) => {
         setDeletingTransactionId(id)
         setShowDeleteTransactionConfirm(true)
     }
 
-    const confirmDeleteTransaction = () => {
+    const confirmDeleteTransaction = async () => {
         if (!deletingTransactionId) return
-        setTransactions(prev => prev.filter(t => t.id !== deletingTransactionId))
-        setShowDeleteTransactionConfirm(false)
-        setDeletingTransactionId(null)
-    }
 
-    // Backup & Upload Functions
-    const handleExportData = () => {
-        const data = {
-            records,
-            transactions,
-            exportedAt: new Date().toISOString(),
-            version: '1.0'
+        const { error } = await supabase
+            .from('transactions')
+            .delete()
+            .eq('id', deletingTransactionId)
+
+        if (error) {
+            console.error('Error deleting transaction:', error)
+            alert('Failed to delete transaction')
+        } else {
+            setShowDeleteTransactionConfirm(false)
+            setDeletingTransactionId(null)
+            fetchTransactions()
         }
-
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `rc-garage-backup-${new Date().toISOString().split('T')[0]}.json`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
-    }
-
-    const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0]
-        if (!file) return
-
-        const reader = new FileReader()
-        reader.onload = (e) => {
-            try {
-                const content = e.target?.result as string
-                const data = JSON.parse(content)
-
-                if (data.records && Array.isArray(data.records)) {
-                    setRecords(data.records)
-                }
-                if (data.transactions && Array.isArray(data.transactions)) {
-                    setTransactions(data.transactions)
-                }
-
-                setImportError(null)
-                alert('Import data successfully!')
-            } catch (error) {
-                console.error('Import failed:', error)
-                setImportError('Invalid JSON file format')
-            }
-        }
-        reader.readAsText(file)
-        // Reset input value to allow selecting the same file again
-        event.target.value = ''
-    }
-
-    const handleResetData = () => {
-        setShowResetConfirm(true)
-    }
-
-    const confirmReset = () => {
-        setRecords([])
-        setTransactions([])
-        localStorage.removeItem('rc_garage_timer_records')
-        localStorage.removeItem('rc_garage_transactions')
-        setShowResetConfirm(false)
     }
 
     const { hours, minutes, seconds, milliseconds } = formatTime(time)
@@ -425,15 +419,6 @@ export default function TimerPage() {
                                 }`}
                         >
                             Buy / Sell
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('backup')}
-                            className={`px-6 py-2 rounded-lg transition-all duration-300 font-medium tracking-wide whitespace-nowrap ${activeTab === 'backup'
-                                    ? 'bg-gradient-to-r from-ocean-blue/20 to-ocean-teal/20 text-ocean-blue border border-ocean-blue/30 shadow-soft-blue'
-                                    : 'text-gray-400 hover:text-white hover:bg-white/5'
-                                }`}
-                        >
-                            Backup & Upload
                         </button>
                     </div>
                 </div>
@@ -648,13 +633,13 @@ export default function TimerPage() {
                                                 </td>
                                                 <td className="px-4 py-4 text-sm text-white font-medium">{t.item}</td>
                                                 <td className="px-4 py-4 text-sm text-gray-400 font-mono">
-                                                    {new Date(t.dateTime).toLocaleString('th-TH')}
+                                                    {new Date(t.date_time).toLocaleString('th-TH')}
                                                 </td>
                                                 <td className="px-4 py-4 text-sm text-right text-ocean-blue font-mono">
-                                                    {t.rainPrice.toLocaleString()}
+                                                    {t.rain_price.toLocaleString()}
                                                 </td>
                                                 <td className="px-4 py-4 text-sm text-right text-emerald-400 font-mono font-bold">
-                                                    {t.bahtPrice.toLocaleString()}
+                                                    {t.baht_price.toLocaleString()}
                                                 </td>
                                                 <td className="px-4 py-4 text-sm text-gray-400 truncate max-w-[150px]">{t.note}</td>
                                                 <td className="px-4 py-4 text-sm text-center space-x-2">
@@ -683,60 +668,6 @@ export default function TimerPage() {
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
-                    </div>
-                )}
-
-                {activeTab === 'backup' && (
-                    <div className="w-full animate-fadeIn space-y-8 max-w-2xl mx-auto">
-                        <div className="text-center mb-8">
-                            <h2 className="text-2xl font-bold text-white tracking-wide mb-2">Backup & Restore</h2>
-                            <p className="text-gray-400 text-sm">Manage your local data. Export to save a backup or import to restore data.</p>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Export Section */}
-                            <div className="glass-panel p-8 rounded-2xl border-t-4 border-t-ocean-blue flex flex-col items-center text-center hover:bg-white/5 transition-colors">
-                                <div className="w-16 h-16 bg-ocean-blue/10 rounded-full flex items-center justify-center mb-4 text-ocean-blue">
-                                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                                </div>
-                                <h3 className="text-xl font-bold text-white mb-2">Export Data</h3>
-                                <p className="text-gray-400 text-sm mb-6">Download all your records and transactions as a JSON file.</p>
-                                <button
-                                    onClick={handleExportData}
-                                    className="w-full px-6 py-3 bg-ocean-blue text-white hover:bg-blue-600 rounded-xl font-bold shadow-lg shadow-ocean-blue/20 transition-all transform hover:-translate-y-0.5"
-                                >
-                                    Download Backup
-                                </button>
-                            </div>
-
-                            {/* Import Section */}
-                            <div className="glass-panel p-8 rounded-2xl border-t-4 border-t-ocean-teal flex flex-col items-center text-center hover:bg-white/5 transition-colors">
-                                <div className="w-16 h-16 bg-ocean-teal/10 rounded-full flex items-center justify-center mb-4 text-ocean-teal">
-                                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                                </div>
-                                <h3 className="text-xl font-bold text-white mb-2">Import Data</h3>
-                                <p className="text-gray-400 text-sm mb-6">Restore data from a backup file. This will overwrite current data.</p>
-                                <label className="w-full px-6 py-3 bg-ocean-teal text-white hover:bg-teal-600 rounded-xl font-bold shadow-lg shadow-ocean-teal/20 transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center justify-center">
-                                    <span>Upload File</span>
-                                    <input type="file" accept=".json" onChange={handleImportData} className="hidden" />
-                                </label>
-                                {importError && <p className="text-rose-500 text-xs mt-2">{importError}</p>}
-                            </div>
-                        </div>
-
-                        {/* Reset Section */}
-                        <div className="glass-panel p-6 rounded-2xl border border-rose-500/20 mt-8 flex justify-between items-center">
-                            <div>
-                                <h3 className="text-lg font-bold text-rose-400">Reset All Data</h3>
-                                <p className="text-gray-500 text-xs">Permanently delete all local data. This action cannot be undone.</p>
-                            </div>
-                            <button
-                                onClick={handleResetData}
-                                className="px-4 py-2 border border-rose-500/50 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg transition-colors text-sm font-bold"
-                            >
-                                Reset Data
-                            </button>
                         </div>
                     </div>
                 )}
@@ -955,33 +886,6 @@ export default function TimerPage() {
                                 className="flex-1 px-4 py-2 bg-rose-600 text-white hover:bg-rose-500 rounded-xl font-bold shadow-lg shadow-rose-600/30 transition-colors uppercase tracking-wider text-sm"
                             >
                                 Delete
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Reset All Data Confirmation */}
-            {showResetConfirm && (
-                <div className="fixed inset-0 bg-ocean-dark/90 backdrop-blur-md flex items-center justify-center z-50 animate-fadeIn">
-                    <div className="glass-panel p-8 rounded-3xl max-w-sm w-full mx-4 border border-rose-500 shadow-2xl transform scale-100 animate-scaleIn text-center">
-                        <div className="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-500 border border-rose-500/20">
-                            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                        </div>
-                        <h3 className="text-xl font-bold mb-2 text-white uppercase tracking-wide">Danger Zone</h3>
-                        <p className="text-gray-400 mb-6 text-sm">This will permanently delete ALL your data from this browser. Make sure you have a backup!</p>
-                        <div className="flex space-x-4">
-                            <button
-                                onClick={() => setShowResetConfirm(false)}
-                                className="flex-1 px-4 py-2 border border-gray-600 text-gray-400 hover:border-white hover:text-white rounded-xl font-bold transition-colors uppercase tracking-wider text-sm"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={confirmReset}
-                                className="flex-1 px-4 py-2 bg-rose-600 text-white hover:bg-rose-500 rounded-xl font-bold shadow-lg shadow-rose-600/30 transition-colors uppercase tracking-wider text-sm"
-                            >
-                                Confirm Reset
                             </button>
                         </div>
                     </div>

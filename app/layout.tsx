@@ -9,7 +9,7 @@ const prompt = Prompt({
 })
 
 export const metadata: Metadata = {
-    title: "RC Garage Log",
+    title: "[RC Garage Log]",
     description: "Cyberpunk style timer and log for RC Garage",
 };
 

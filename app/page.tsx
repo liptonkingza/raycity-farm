@@ -37,10 +37,12 @@ export default function TimerPage() {
     const [time, setTime] = useState(0)
     const [isRunning, setIsRunning] = useState(false)
     const [showModal, setShowModal] = useState(false)
-    const [amount, setAmount] = useState('')
+    const [initialAmount, setInitialAmount] = useState('1000000')
+    const [endingAmount, setEndingAmount] = useState('1000000')
     const [savedTime, setSavedTime] = useState(0)
     const [records, setRecords] = useState<TimerRecord[]>([])
     const intervalRef = useRef<NodeJS.Timeout | null>(null)
+    const [showStartModal, setShowStartModal] = useState(false)
 
     // Edit/Delete Timer Record State
     const [showEditModal, setShowEditModal] = useState(false)
@@ -170,6 +172,16 @@ export default function TimerPage() {
     }
 
     const handleStart = () => {
+        setShowStartModal(true)
+    }
+
+    const handleConfirmStart = () => {
+        const initialNum = parseFloat(initialAmount)
+        if (isNaN(initialNum) || initialNum < 0) {
+            alert('กรุณากรอกจำนวนเงินเริ่มต้นที่ถูกต้อง')
+            return
+        }
+        setShowStartModal(false)
         setIsRunning(true)
     }
 
@@ -180,18 +192,26 @@ export default function TimerPage() {
     const handleFinish = () => {
         setIsRunning(false)
         setSavedTime(time)
-        setAmount('1000000')
+        setEndingAmount('1000000')
         setShowModal(true)
     }
 
     const handleSaveRecord = async () => {
-        const amountNum = parseFloat(amount)
-        if (isNaN(amountNum) || amountNum <= 0) {
-            alert('กรุณากรอกจำนวนเงินที่ถูกต้อง')
+        const initialNum = parseFloat(initialAmount)
+        const endingNum = parseFloat(endingAmount)
+
+        if (isNaN(initialNum) || initialNum < 0) {
+            alert('กรุณากรอกจำนวนเงินเริ่มต้นที่ถูกต้อง')
             return
         }
 
-        const hourlyRate = calculateHourlyRate(savedTime, amountNum)
+        if (isNaN(endingNum) || endingNum < 0) {
+            alert('กรุณากรอกจำนวนเงินสิ้นสุดที่ถูกต้อง')
+            return
+        }
+
+        const rainAmount = endingNum - initialNum
+        const hourlyRate = calculateHourlyRate(savedTime, rainAmount)
 
         const { error } = await supabase
             .from('timer_records')
@@ -200,7 +220,7 @@ export default function TimerPage() {
                     user_id: user?.id,
                     date: new Date().toISOString(),
                     duration: savedTime,
-                    amount: amountNum,
+                    amount: rainAmount,
                     hourly_rate: hourlyRate,
                 }
             ])
@@ -210,7 +230,8 @@ export default function TimerPage() {
             alert('Failed to save record')
         } else {
             setShowModal(false)
-            setAmount('')
+            setInitialAmount('1000000')
+            setEndingAmount('1000000')
             setTime(0)
             setSavedTime(0)
             fetchRecords()
@@ -219,9 +240,14 @@ export default function TimerPage() {
 
     const handleCloseModal = () => {
         setShowModal(false)
-        setAmount('')
+        setEndingAmount('1000000')
         setTime(0)
         setSavedTime(0)
+    }
+
+    const handleCloseStartModal = () => {
+        setShowStartModal(false)
+        setInitialAmount('1000000')
     }
 
     // Edit functions
@@ -976,15 +1002,32 @@ export default function TimerPage() {
                                     <div className="text-3xl font-mono font-bold text-ocean-teal">{formatDuration(savedTime)}</div>
                                 </div>
                                 <div>
-                                    <label className="block text-gray-300 mb-2 text-xs font-bold uppercase tracking-wider">Amount (Rain)</label>
+                                    <label className="block text-gray-300 mb-2 text-xs font-bold uppercase tracking-wider">จำนวนเงินเริ่มต้น (Initial Amount)</label>
                                     <input
                                         type="number"
-                                        value={amount}
-                                        onChange={(e) => setAmount(e.target.value)}
+                                        value={initialAmount}
+                                        readOnly
+                                        className="w-full bg-ocean-depth/50 border border-white/5 rounded-xl px-4 py-3 text-gray-400 text-lg font-mono text-right cursor-not-allowed"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-300 mb-2 text-xs font-bold uppercase tracking-wider">จำนวนเงินสิ้นสุด (Ending Amount)</label>
+                                    <input
+                                        type="number"
+                                        value={endingAmount}
+                                        onChange={(e) => setEndingAmount(e.target.value)}
                                         className="w-full bg-ocean-depth border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-ocean-teal focus:ring-1 focus:ring-ocean-teal transition-all text-lg font-mono text-right"
                                         placeholder="0"
                                         autoFocus
                                     />
+                                </div>
+                                <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 p-4 rounded-xl">
+                                    <div className="text-emerald-400 text-xs uppercase tracking-wider mb-1 text-center">Amount (Rain)</div>
+                                    <div className="text-3xl font-mono font-bold text-emerald-400 text-center">
+                                        {endingAmount && initialAmount && !isNaN(parseFloat(endingAmount)) && !isNaN(parseFloat(initialAmount))
+                                            ? (parseFloat(endingAmount) - parseFloat(initialAmount)).toLocaleString()
+                                            : '0'} Rain
+                                    </div>
                                 </div>
                                 <div className="flex space-x-4 pt-4">
                                     <button
@@ -998,6 +1041,44 @@ export default function TimerPage() {
                                         className="flex-1 px-6 py-3 bg-ocean-teal text-white hover:bg-teal-600 rounded-xl font-bold shadow-lg shadow-ocean-teal/30 transition-colors uppercase tracking-wider text-sm"
                                     >
                                         Save
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Start Timer Modal */}
+            {
+                showStartModal && (
+                    <div className="fixed inset-0 bg-ocean-dark/90 backdrop-blur-md flex items-center justify-center z-50 animate-fadeIn">
+                        <div className="glass-panel p-8 rounded-3xl max-w-md w-full mx-4 border border-white/10 shadow-2xl transform scale-100 animate-scaleIn">
+                            <h3 className="text-2xl font-bold mb-6 text-center text-white tracking-wide">Start Timer</h3>
+                            <div className="space-y-6">
+                                <div>
+                                    <label className="block text-gray-300 mb-2 text-xs font-bold uppercase tracking-wider">จำนวนเงินเริ่มต้น (Initial Amount)</label>
+                                    <input
+                                        type="number"
+                                        value={initialAmount}
+                                        onChange={(e) => setInitialAmount(e.target.value)}
+                                        className="w-full bg-ocean-depth border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-ocean-teal focus:ring-1 focus:ring-ocean-teal transition-all text-lg font-mono text-right"
+                                        placeholder="0"
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="flex space-x-4 pt-4">
+                                    <button
+                                        onClick={handleCloseStartModal}
+                                        className="flex-1 px-6 py-3 border border-gray-600 text-gray-400 hover:border-white hover:text-white rounded-xl font-bold transition-colors uppercase tracking-wider text-sm"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleConfirmStart}
+                                        className="flex-1 px-6 py-3 bg-ocean-teal text-white hover:bg-teal-600 rounded-xl font-bold shadow-lg shadow-ocean-teal/30 transition-colors uppercase tracking-wider text-sm"
+                                    >
+                                        Start
                                     </button>
                                 </div>
                             </div>
